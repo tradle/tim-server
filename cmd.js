@@ -101,6 +101,7 @@ function printHelp () {
       tim-server -i ./identity.json -k ./keys.json
 
   Options:
+      -h, --help              print usage
       -i, --identity [path]   path to identity JSON
       -k, --keys [path]       path to private keys file (for identity)
       -p, --port [number]     server port (default: 32123)
