@@ -73,6 +73,13 @@ While debugging, you may find it useful to look at the contents of the various l
 Example:
 
 ```bash
+ls -al
+...
+drwxr-xr-x 10 user group  340 Aug 21 14:01 bill-addressBook.db/
+drwxr-xr-x 12 user group  408 Aug 21 14:01 bill-messages.db/
+drwxr-xr-x 12 user group  408 Aug 21 14:01 bill-msg-log.db/
+drwxr-xr-x  9 user group  306 Aug 21 14:01 bill-txs.db/
+...
 level-dump bill-messages.db
 level-dump bill-addressBook.db
 ```
