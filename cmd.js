@@ -5,7 +5,8 @@ var argv = require('minimist')(process.argv.slice(2), {
     p: 'port',
     t: 'tim-port',
     i: 'identity',
-    k: 'keys'
+    k: 'keys',
+    h: 'help'
   },
   default: {
     p: 32123,
@@ -13,10 +14,33 @@ var argv = require('minimist')(process.argv.slice(2), {
   }
 })
 
+if (argv.help) {
+  printHelp()
+}
+
+if (!argv.identity) {
+  console.error('ERROR: --identity is required, see usage')
+  printHelp()
+  process.exit(1)
+}
+
+if (!argv.keys) {
+  console.error('ERROR: --keys is required, see usage')
+  printHelp()
+  process.exit(1)
+}
+
 var express = require('express')
 var app = express()
 var port = argv.port
 var server = app.listen(port)
+server.on('error', function (err) {
+  if (err) {
+    console.error('ERROR', err.message)
+    process.exit(1)
+  }
+})
+
 // hacky, but express needs to run with net, not utp
 require('multiplex-utp')
 
@@ -38,7 +62,7 @@ var destroy = setupApp({
 })
 
 console.log('Tim is running on port:', timPort)
-console.log('Running on port:', port)
+console.log('Server is Running on port:', port)
 
 var selfDestructing
 process.on('exit', cleanup)
@@ -63,4 +87,27 @@ function cleanup () {
       debug('shutting down')
       process.exit()
     })
+}
+
+function printHelp () {
+  console.log(function () {
+  /*
+  WORK IN PROGRESS, DON'T USE IN A PRODUCTION ENVIRONMENT
+
+  Usage:
+      tim-server <options>
+
+  Example:
+      tim-server -i ./identity.json -k ./keys.json
+
+  Options:
+      -i, --identity [path]   path to identity JSON
+      -k, --keys [path]       path to private keys file (for identity)
+      -p, --port [number]     server port (default: 32123)
+      -t, --tim-port [number] port tim will run on (default: 51086)
+
+  Please report bugs!  https://github.com/mvayngrib/tim-server/issues
+  */
+  }.toString().split(/\n/).slice(2, -2).join('\n'))
+  process.exit(0)
 }
