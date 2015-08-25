@@ -58,13 +58,13 @@ module.exports = function timServer (opts) {
     }
   })
 
-  // app.get('/messages', function (req, res) {
-  //   collect(tim.messages().createValueStream(), function (err, results) {
-  //     if (err) return sendErr(res, err)
+  app.get('/messages', function (req, res) {
+    collect(tim.messages().createValueStream(), function (err, results) {
+      if (err) return sendErr(res, err)
 
-  //     res.send(prettify(results))
-  //   })
-  // })
+      res.send(prettify(results))
+    })
+  })
 
   app.get('/chained', function (req, res) {
     var chained = tim
@@ -87,10 +87,26 @@ module.exports = function timServer (opts) {
   })
 
   app.get('/send', function (req, res) {
+    if (!('to' in req.query && 'msg' in req.query)) {
+      return res.status(400).send('"to" and "msg" are required parameters')
+    }
+
+    var to = req.query.to
+    var msg = req.query.msg
     var promise
     try {
-      req.query.msg = JSON.parse(req.query.msg)
-      promise = tim.send(req.query)
+      msg = JSON.parse(msg)
+      to = JSON.parse(to)
+      if (!Array.isArray(to)) {
+        to = [to]
+      }
+
+      promise = tim.send({
+        to: to,
+        msg: msg,
+        public: truthy(req.query.public),
+        chain: truthy(req.query.chain)
+      })
     } catch (err) {
       return res.status(400).send(err.message)
     }
@@ -162,4 +178,8 @@ function defaultErrHandler (err, req, res, next) {
   if (err) return sendErr(res, err)
 
   next()
+}
+
+function truthy (val) {
+  return val === '1' || val === 'true'
 }
