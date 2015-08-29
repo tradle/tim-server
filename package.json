@@ -14,6 +14,7 @@
     "bitkeeper-js": "tradle/bitkeeper-js",
     "bittorrent-dht": "tradle/bittorrent-dht",
     "cb-blockr": "^3.1.1",
+    "debug": "^2.2.0",
     "express": "^4.13.3",
     "leveldown": "^1.4.1",
     "map-stream": "0.0.6",
