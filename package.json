@@ -23,7 +23,7 @@
     "multiplex-utp": "^1.0.0",
     "once": "^1.3.2",
     "stream-collector": "^1.0.1",
-    "tim": "file:../tradling",
+    "tim": "^1.2.1",
     "typeforce": "^1.3.2"
   },
   "devDependencies": {
