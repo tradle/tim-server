@@ -94,8 +94,8 @@ module.exports = function timServer (opts) {
       Q.all(results.map(function (r) {
           return tim.lookupObject(r)
         }))
-        .then(function () {
-          res.json(results)
+        .then(function (decrypted) {
+          res.json(decrypted)
         })
         .catch(function (err) {
           sendErr(res, err)
@@ -140,6 +140,9 @@ module.exports = function timServer (opts) {
     })
   })
 
+  // app.get('/publish', function (req, res) {
+  // })
+
   app.get('/send', function (req, res) {
     if (!('to' in req.query && 'msg' in req.query)) {
       return res.status(400).send('"to" and "msg" are required parameters')
@@ -159,15 +162,19 @@ module.exports = function timServer (opts) {
         to: to,
         msg: msg,
         public: truthy(req.query.public),
-        chain: truthy(req.query.chain)
+        chain: truthy(req.query.chain),
+        deliver: truthy(req.query.deliver)
       })
     } catch (err) {
       return res.status(400).send(err.message)
     }
 
     promise
-      .then(function () {
-        res.send('sending, check back in a bit...')
+      .then(function (entries) {
+        // res.send('sending, check back in a bit...')
+        res.json(entries.map(function (e) {
+          return e.toJSON()
+        }))
       })
       .catch(function (err) {
         err.message = 'failed to send message: ' + err.message
@@ -179,20 +186,10 @@ module.exports = function timServer (opts) {
   app.use(defaultErrHandler)
 
   tim.once('ready', function () {
-    tim.identityPublishStatus(function (err, status) {
-      if (err) return console.error('failed to get identity status', err.message)
-
-      var msg = 'identity status: '
-      if (!status.ever) msg += 'unpublished'
-      else if (!status.current) msg += 'needs republishing'
-      else msg += 'published latest'
-
-      console.log(msg)
-    })
-
-    tim.on('chained', function (obj) {
-      console.log('chained', obj)
-    })
+    printIdentityPublishStatus()
+    // tim.on('chained', function (obj) {
+    //   console.log('chained', obj)
+    // })
 
     // tim.publishMyIdentity()
     tim.on('error', function (err) {
@@ -202,13 +199,30 @@ module.exports = function timServer (opts) {
 
   console.log('Send money to', tim.wallet.addressString)
   printBalance()
-  setInterval(printBalance, 60000).unref()
+  setInterval(function () {
+    printBalance()
+    printIdentityPublishStatus()
+  }, 60000).unref()
+
   return tim.destroy.bind(tim)
 
   function printBalance () {
     tim.wallet.balance(function (err, balance) {
       if (err) console.error('failed to get balance', err.message)
       else console.log('balance', balance)
+    })
+  }
+
+  function printIdentityPublishStatus () {
+    tim.identityPublishStatus(function (err, status) {
+      if (err) return console.error('failed to get identity status', err.message)
+
+      var msg = 'identity status: '
+      if (!status.ever) msg += 'unpublished'
+      else if (!status.current) msg += 'needs republishing'
+      else msg += 'published latest'
+
+      console.log(msg)
     })
   }
 }

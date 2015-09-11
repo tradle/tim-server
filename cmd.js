@@ -9,8 +9,8 @@ var argv = require('minimist')(process.argv.slice(2), {
     h: 'help'
   },
   default: {
-    p: 32123,
-    t: 51086
+    p: 33333,
+    t: 44444
   }
 })
 
@@ -104,8 +104,8 @@ function printHelp () {
       -h, --help              print usage
       -i, --identity [path]   path to identity JSON
       -k, --keys [path]       path to private keys file (for identity)
-      -p, --port [number]     server port (default: 32123)
-      -t, --tim-port [number] port tim will run on (default: 51086)
+      -p, --port [number]     server port (default: 33333)
+      -t, --tim-port [number] port tim will run on (default: 44444)
 
   Please report bugs!  https://github.com/mvayngrib/tim-server/issues
   */
