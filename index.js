@@ -26,10 +26,10 @@ module.exports = function timServer (opts) {
 
   if (!opts.public) {
     app.use(function(req, res, next) {
-      if (/https?:\/\/(localhost|127.0.0.1):/.test(req.ip)) {
+      if (isLocalIP(req.ip)) {
         next()
       } else {
-        res.end(403, 'forbidden')
+        res.status(403).send('forbidden')
       }
     })
   }
@@ -93,6 +93,16 @@ module.exports = function timServer (opts) {
 
   app.get('/messages', function (req, res) {
     collect(tim.messages().createValueStream(), function (err, results) {
+      if (err) return sendErr(res, err)
+
+      res.json(results)
+    })
+  })
+
+  app.get('/decryptedMessages', function (req, res) {
+    if (!isLocalIP(req.ip)) return sendErr(res, new Error('forbidden'))
+
+    collect(tim.decryptedMessagesStream(), function (err, results) {
       if (err) return sendErr(res, err)
 
       res.json(results)
@@ -268,4 +278,8 @@ function defaultErrHandler (err, req, res, next) {
 
 function truthy (val) {
   return val === '1' || val === 'true'
+}
+
+function isLocalIP (ip) {
+  return ip.indexOf('127.0.0.1') !== -1
 }
