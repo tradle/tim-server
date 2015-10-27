@@ -6,38 +6,62 @@ var typeforce = require('typeforce')
 var Q = require('q')
 var Identity = require('midentity').Identity
 var constants = require('tradle-constants')
-var buildTim = require('./lib/buildTim')
 var env = process.env.NODE_ENV || 'development'
 var DEV = env === 'development'
 
 module.exports = function timServer (opts) {
   typeforce({
-    identity: 'Object',
-    keys: 'Array',
-    port: 'Number',
-    app: 'EventEmitter'
+    app: 'EventEmitter',
+    tim: 'Object',
+    public: '?Boolean'
   }, opts)
 
   var app = opts.app
-  var keys = opts.keys
-  var tim = buildTim(opts)
+  var tim = opts.tim
 
   if (DEV) {
     app.set('json replacer', jsonReplacer)
     app.set('json spaces', 2)
   }
 
-  app.get('/me', function (req, res) {
-    tim.identityPublishStatus(function (err, status) {
-      if (err) return sendErr(res, err)
-
-      res.send(status)
+  if (!opts.public) {
+    app.use(function(req, res, next) {
+      if (/https?:\/\/(localhost|127.0.0.1):/.test(req.ip)) {
+        next()
+      } else {
+        res.end(403, 'forbidden')
+      }
     })
+  }
+
+  app.get('/balance', function (req, res) {
+    Q.ninvoke(tim.wallet, 'balance')
+      .then(function (balance) {
+        res.send('' + balance)
+      })
+      .catch(function (err) {
+        sendErr(res, err)
+      })
+  })
+
+  app.get('/publish-status', function (req, res) {
+    tim.identityPublishStatus()
+      .then(function (status) {
+        res.send(status)
+      })
+      .catch(function (err) {
+        sendErr(res, err)
+      })
   })
 
   app.get('/self-publish', function (req, res) {
     tim.publishMyIdentity()
-    res.send('Publishing...check back in a bit')
+      .then(function () {
+        res.send('Publishing...check back in a bit')
+      })
+      .catch(function (err) {
+        sendErr(res, err)
+      })
   })
 
   app.get('/identities', function (req, res) {
@@ -76,9 +100,7 @@ module.exports = function timServer (opts) {
   })
 
   app.get('/obj/:rootHash', function (req, res) {
-    var query = {}
-    query[constants.ROOT_HASH] = req.params.rootHash
-    collect(tim.messages().query(query), function (err, results) {
+    tim.messages().byRootHash(req.params.rootHash, function (err, results) {
       if (err) return sendErr(res, err)
 
       res.json(results)
@@ -86,14 +108,26 @@ module.exports = function timServer (opts) {
   })
 
   app.get('/decrypted/:rootHash', function (req, res) {
-    var query = {}
-    query[constants.ROOT_HASH] = req.params.rootHash
-    collect(tim.messages().query(query), function (err, results) {
-      if (err) return sendErr(res, err)
-
-      Q.all(results.map(function (r) {
+    return Q.ninvoke(tim.messages(), 'byRootHash', req.params.rootHash)
+      .then(function (results) {
+        return Q.all(results.map(function (r) {
           return tim.lookupObject(r)
         }))
+      })
+      .then(function (decrypted) {
+        res.json(decrypted)
+      })
+      .catch(function (err) {
+        sendErr(res, err)
+      })
+      .done()
+  })
+
+  app.get('/curHash/:curHash', function (req, res) {
+    tim.messages().byCurHash(req.params.curHash, function (err, result) {
+      if (err) return sendErr(res, err)
+
+      return tim.lookupObject(result)
         .then(function (decrypted) {
           res.json(decrypted)
         })
@@ -186,7 +220,6 @@ module.exports = function timServer (opts) {
   app.use(defaultErrHandler)
 
   tim.once('ready', function () {
-    printIdentityPublishStatus()
     // tim.on('chained', function (obj) {
     //   console.log('chained', obj)
     // })
@@ -197,34 +230,21 @@ module.exports = function timServer (opts) {
     })
   })
 
-  console.log('Send money to', tim.wallet.addressString)
-  printBalance()
-  setInterval(function () {
-    printBalance()
-    printIdentityPublishStatus()
-  }, 60000).unref()
+  // console.log('Send money to', tim.wallet.addressString)
+  // printBalance()
+  // setInterval(function () {
+  //   printBalance()
+  //   printIdentityPublishStatus()
+  // }, 60000).unref()
 
   return tim.destroy.bind(tim)
 
-  function printBalance () {
-    tim.wallet.balance(function (err, balance) {
-      if (err) console.error('failed to get balance', err.message)
-      else console.log('balance', balance)
-    })
-  }
-
-  function printIdentityPublishStatus () {
-    tim.identityPublishStatus(function (err, status) {
-      if (err) return console.error('failed to get identity status', err.message)
-
-      var msg = 'identity status: '
-      if (!status.ever) msg += 'unpublished'
-      else if (!status.current) msg += 'needs republishing'
-      else msg += 'published latest'
-
-      console.log(msg)
-    })
-  }
+  // function printBalance () {
+  //   tim.wallet.balance(function (err, balance) {
+  //     if (err) console.error('failed to get balance', err.message)
+  //     else console.log('balance', balance)
+  //   })
+  // }
 }
 
 function sendErr (res, err) {

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+var express = require('express')
+var buildTim = require('./lib/buildTim')
 var argv = require('minimist')(process.argv.slice(2), {
   alias: {
     p: 'port',
@@ -30,7 +32,6 @@ if (!argv.keys) {
   process.exit(1)
 }
 
-var express = require('express')
 var app = express()
 var port = argv.port
 var server = app.listen(port)
@@ -54,15 +55,25 @@ var identityJSON = require(path.resolve(argv.identity))
 var keys = require(path.resolve(argv.keys))
 var timPort = argv['tim-port']
 
-var destroy = setupApp({
-  app: app,
+var tim = buildTim({
   identity: identityJSON,
   keys: keys,
-  port: timPort
+  port: timPort,
+  afterBlockTimestamp: 1445884939
+})
+
+var destroy = setupApp({
+  app: app,
+  tim: tim
 })
 
 console.log('Tim is running on port:', timPort)
 console.log('Server is Running on port:', port)
+printIdentityPublishStatus()
+tim.wallet.balance(function (err, balance) {
+  console.log('Balance: ', balance)
+  console.log('Send coins to: ', tim.wallet.addressString)
+})
 
 var selfDestructing
 process.on('exit', cleanup)
@@ -86,6 +97,22 @@ function cleanup () {
     .done(function () {
       debug('shutting down')
       process.exit()
+    })
+}
+
+function printIdentityPublishStatus () {
+  tim.identityPublishStatus()
+    .then(function (status) {
+      var msg = 'identity status: '
+      if (status.current) msg += 'published latest'
+      else if (status.queued) msg += 'queued for publishing'
+      else if (!status.ever) msg += 'unpublished'
+      else msg += 'published, needs republish'
+
+      console.log(msg)
+    })
+    .catch(function (err) {
+      console.error('failed to get identity status', err.message)
     })
 }
 
