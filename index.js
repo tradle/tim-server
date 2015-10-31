@@ -11,7 +11,7 @@ var DEV = env === 'development'
 
 module.exports = function timServer (opts) {
   typeforce({
-    app: 'EventEmitter',
+    app: typeforce.oneOf('EventEmitter', 'Function'),
     tim: 'Object',
     public: '?Boolean'
   }, opts)
@@ -19,7 +19,7 @@ module.exports = function timServer (opts) {
   var app = opts.app
   var tim = opts.tim
 
-  if (DEV) {
+  if (DEV && app.set) {
     app.set('json replacer', jsonReplacer)
     app.set('json spaces', 2)
   }
