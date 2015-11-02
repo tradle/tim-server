@@ -259,7 +259,7 @@ module.exports = function timServer (opts) {
 
 function sendErr (res, err) {
   var msg = DEV ? err.message : 'something went horribly wrong'
-  res.status(500).send(err.message + '\n' + err.stack)
+  res.status(500).send(msg + '\n' + err.stack)
 }
 
 function jsonReplacer (k, v)  {
