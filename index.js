@@ -4,8 +4,8 @@ var express = require('express')
 var collect = require('stream-collector')
 var typeforce = require('typeforce')
 var Q = require('q')
-var Identity = require('midentity').Identity
-var constants = require('tradle-constants')
+var Identity = require('@tradle/identity').Identity
+var constants = require('@tradle/constants')
 var env = process.env.NODE_ENV || 'development'
 var DEV = env === 'development'
 

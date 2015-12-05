@@ -43,14 +43,14 @@ server.on('error', function (err) {
 })
 
 // hacky, but express needs to run with net, not utp
-require('multiplex-utp')
+require('@tradle/multiplex-utp')
 
 var debug = require('debug')('tim-server')
 var path = require('path')
 var assert = require('assert')
 var setupApp = require('./')
 
-var Identity = require('midentity').Identity
+var Identity = require('@tradle/identity').Identity
 var identityJSON = require(path.resolve(argv.identity))
 var keys = require(path.resolve(argv.keys))
 var timPort = argv['tim-port']
