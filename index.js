@@ -6,6 +6,7 @@ var typeforce = require('typeforce')
 var Q = require('q')
 var Identity = require('@tradle/identity').Identity
 var constants = require('@tradle/constants')
+var localOnly = require('./middleware/localOnly')
 var env = process.env.NODE_ENV || 'development'
 var DEV = env === 'development'
 
@@ -25,15 +26,10 @@ module.exports = function timServer (opts) {
   }
 
   if (!opts.public) {
-    app.use(function(req, res, next) {
-      if (isLocalIP(req.ip)) {
-        next()
-      } else {
-        res.status(403).send('forbidden')
-      }
-    })
+    app.use(localOnly)
   }
 
+  app.get('/balance', localOnly)
   app.get('/balance', function (req, res) {
     Q.ninvoke(tim.wallet, 'balance')
       .then(function (balance) {
@@ -44,6 +40,7 @@ module.exports = function timServer (opts) {
       })
   })
 
+  app.get('/publish-status', localOnly)
   app.get('/publish-status', function (req, res) {
     tim.identityPublishStatus()
       .then(function (status) {
@@ -54,6 +51,7 @@ module.exports = function timServer (opts) {
       })
   })
 
+  app.get('/self-publish', localOnly)
   app.get('/self-publish', function (req, res) {
     tim.publishMyIdentity()
       .then(function () {
@@ -91,6 +89,7 @@ module.exports = function timServer (opts) {
     }
   })
 
+  app.get('/messages', localOnly)
   app.get('/messages', function (req, res) {
     collect(tim.messages().createValueStream(), function (err, results) {
       if (err) return sendErr(res, err)
@@ -99,9 +98,8 @@ module.exports = function timServer (opts) {
     })
   })
 
+  app.get('/decryptedMessages', localOnly)
   app.get('/decryptedMessages', function (req, res) {
-    if (!isLocalIP(req.ip)) return sendErr(res, new Error('forbidden'))
-
     collect(tim.decryptedMessagesStream(), function (err, results) {
       if (err) return sendErr(res, err)
 
@@ -109,6 +107,7 @@ module.exports = function timServer (opts) {
     })
   })
 
+  app.get('/obj/:rootHash', localOnly)
   app.get('/obj/:rootHash', function (req, res) {
     tim.messages().byRootHash(req.params.rootHash, function (err, results) {
       if (err) return sendErr(res, err)
@@ -117,6 +116,7 @@ module.exports = function timServer (opts) {
     })
   })
 
+  app.get('/decrypted/:rootHash', localOnly)
   app.get('/decrypted/:rootHash', function (req, res) {
     return Q.ninvoke(tim.messages(), 'byRootHash', req.params.rootHash)
       .then(function (results) {
@@ -133,7 +133,8 @@ module.exports = function timServer (opts) {
       .done()
   })
 
-  app.get('/curHash/:curHash', function (req, res) {
+  app.get('/objByCurHash/:curHash', localOnly)
+  app.get('/objByCurHash/:curHash', function (req, res) {
     tim.messages().byCurHash(req.params.curHash, function (err, result) {
       if (err) return sendErr(res, err)
 
@@ -148,6 +149,7 @@ module.exports = function timServer (opts) {
     })
   })
 
+  app.get('/chained', localOnly)
   app.get('/chained', function (req, res) {
     var chained = tim
       .messages()
@@ -184,9 +186,8 @@ module.exports = function timServer (opts) {
     })
   })
 
-  // app.get('/publish', function (req, res) {
-  // })
-
+  // GET for convenience
+  app.get('/send', localOnly)
   app.get('/send', function (req, res) {
     if (!('to' in req.query && 'msg' in req.query)) {
       return res.status(400).send('"to" and "msg" are required parameters')
@@ -257,6 +258,10 @@ module.exports = function timServer (opts) {
   // }
 }
 
+module.exports.middleware = {
+  localOnly: localOnly
+}
+
 function sendErr (res, err) {
   var msg = DEV ? err.message : 'something went horribly wrong'
   res.status(500).send(msg + '\n' + err.stack)
@@ -278,8 +283,4 @@ function defaultErrHandler (err, req, res, next) {
 
 function truthy (val) {
   return val === '1' || val === 'true'
-}
-
-function isLocalIP (ip) {
-  return ip.indexOf('127.0.0.1') !== -1
 }
