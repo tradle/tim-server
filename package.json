@@ -26,7 +26,7 @@
     "once": "^1.3.2",
     "q": "^1.4.1",
     "stream-collector": "^1.0.1",
-    "tim": "tradle/tim",
+    "tim": "^3.1.3",
     "typeforce": "^1.3.2"
   },
   "devDependencies": {
