@@ -1,68 +1,56 @@
-var once = require('once')
-var map = require('map-stream')
-var express = require('express')
-var collect = require('stream-collector')
-var typeforce = require('typeforce')
-var Q = require('q')
-var Identity = require('@tradle/identity').Identity
-var constants = require('@tradle/constants')
-var localOnly = require('./middleware/localOnly')
-var env = process.env.NODE_ENV || 'development'
-var DEV = env === 'development'
+'use strict'
+
+const map = require('map-stream')
+const express = require('express')
+const collect = require('stream-collector')
+const typeforce = require('typeforce')
+const yn = require('yn')
+const jsonParser = require('body-parser').json()
+const Q = require('bluebird-q')
+const Identity = require('@tradle/identity').Identity
+const constants = require('@tradle/constants')
+const localOnly = require('./middleware/localOnly')
+const env = process.env.NODE_ENV || 'development'
+const DEV = env === 'development'
 
 module.exports = function timServer (opts) {
   typeforce({
-    app: typeforce.oneOf('EventEmitter', 'Function'),
+    router: typeforce.oneOf('EventEmitter', 'Function'),
     tim: 'Object',
     public: '?Boolean'
   }, opts)
 
-  var app = opts.app
-  var tim = opts.tim
+  const router = opts.router
+  const tim = opts.tim
 
-  if (DEV && app.set) {
-    app.set('json replacer', jsonReplacer)
-    app.set('json spaces', 2)
+  if (DEV && router.set) {
+    router.set('json replacer', jsonReplacer)
+    router.set('json spaces', 2)
   }
 
   if (!opts.public) {
-    app.use(localOnly)
+    router.use(localOnly)
   }
 
-  app.get('/balance', localOnly)
-  app.get('/balance', function (req, res) {
+  router.get('/balance', localOnly, function (req, res) {
     Q.ninvoke(tim.wallet, 'balance')
-      .then(function (balance) {
-        res.send('' + balance)
-      })
-      .catch(function (err) {
-        sendErr(res, err)
-      })
+      .then(balance => res.json({balance}))
+      .catch(err => sendErr(res, err))
   })
 
-  app.get('/publish-status', localOnly)
-  app.get('/publish-status', function (req, res) {
+  router.get('/publish-status', localOnly, function (req, res) {
     tim.identityPublishStatus()
-      .then(function (status) {
-        res.send(status)
-      })
-      .catch(function (err) {
-        sendErr(res, err)
-      })
+      .then(status => res.json({status}))
+      .catch(err => sendErr(res, err))
   })
 
-  app.get('/self-publish', localOnly)
-  app.get('/self-publish', function (req, res) {
-    tim.publishMyIdentity()
-      .then(function () {
-        res.send('Publishing...check back in a bit')
-      })
-      .catch(function (err) {
-        sendErr(res, err)
-      })
-  })
+  // router.get('/self-publish', localOnly, function (req, res) {
+  //   tim.publishMyIdentity()
+  //     .then(() => res.send('Publishing...check back in a bit'))
+  //     .catch(err => sendErr(res, err))
+  // })
 
-  app.get('/identities', function (req, res) {
+  router.get('/identities', function (req, res) {
     collect(tim.identities().createReadStream(), function (err, results) {
       if (err) return sendErr(res, err)
 
@@ -70,88 +58,87 @@ module.exports = function timServer (opts) {
     })
   })
 
-  app.get('/identity/:id', function (req, res) {
-    var tryAgain = true
-    tim.identities().byFingerprint(req.params.id, onResult)
-    tim.identities().byRootHash(req.params.id, onResult)
-    var respond = once(function (code, contents) {
-      res.status(code).json(contents)
-    })
-
-    function onResult (err, result) {
-      if (err) {
-        if (!tryAgain) respond(404, 'nada')
+  router.get('/identity/:id', function (req, res) {
+    Q.allSettled([
+      Q.ninvoke(tim.identities(), 'byFingerprint', req.params.id),
+      Q.ninvoke(tim.identities(), 'byRootHash', req.params.id)
+    ])
+    .then(results => {
+      const val = results.reduce((found, next) => found || next.value)
+      if (val) {
+        res.json(val)
       } else {
-        respond(200, result)
+        sendErr(res, new Error('not found'), 404)
       }
-
-      tryAgain = false
-    }
+    })
   })
 
-  app.get('/messages', localOnly)
-  app.get('/messages', function (req, res) {
-    collect(tim.messages().createValueStream(), function (err, results) {
+  router.get('/messages', localOnly, function (req, res) {
+    const filter = req.query
+    const stream = tim.messages().createValueStream()
+      .pipe(map((data, cb) => {
+        for (let p in filter) {
+          if (data[p] !== filter[p]) return cb()
+        }
+
+        cb(null, data)
+      }))
+
+    collect(stream, function (err, results) {
       if (err) return sendErr(res, err)
 
       res.json(results)
     })
   })
 
-  app.get('/decryptedMessages', localOnly)
-  app.get('/decryptedMessages', function (req, res) {
-    collect(tim.decryptedMessagesStream(), function (err, results) {
-      if (err) return sendErr(res, err)
+  // router.get('/message', localOnly, function (req, res) {
+  //   tim.messages().byRootHash(req.params.rootHash, function (err, results) {
+  //     if (err) return sendErr(res, err)
 
-      res.json(results)
-    })
-  })
+  //     res.json(results)
+  //   })
+  // })
 
-  app.get('/obj/:rootHash', localOnly)
-  app.get('/obj/:rootHash', function (req, res) {
-    tim.messages().byRootHash(req.params.rootHash, function (err, results) {
-      if (err) return sendErr(res, err)
+  // router.get('/decryptedMessages', localOnly, function (req, res) {
+  //   collect(tim.decryptedMessagesStream(), function (err, results) {
+  //     if (err) return sendErr(res, err)
 
-      res.json(results)
-    })
-  })
+  //     res.json(results)
+  //   })
+  // })
 
-  app.get('/decrypted/:rootHash', localOnly)
-  app.get('/decrypted/:rootHash', function (req, res) {
-    return Q.ninvoke(tim.messages(), 'byRootHash', req.params.rootHash)
-      .then(function (results) {
-        return Q.all(results.map(function (r) {
-          return tim.lookupObject(r)
-        }))
-      })
-      .then(function (decrypted) {
-        res.json(decrypted)
-      })
-      .catch(function (err) {
-        sendErr(res, err)
-      })
-      .done()
-  })
+  // router.get('/decrypted/:rootHash', localOnly, function (req, res) {
+  //   return Q.ninvoke(tim.messages(), 'byRootHash', req.params.rootHash)
+  //     .then(function (results) {
+  //       return Q.all(results.map(function (r) {
+  //         return tim.lookupObject(r)
+  //       }))
+  //     })
+  //     .then(function (decrypted) {
+  //       res.json(decrypted)
+  //     })
+  //     .catch(function (err) {
+  //       sendErr(res, err)
+  //     })
+  //     .done()
+  // })
 
-  app.get('/objByCurHash/:curHash', localOnly)
-  app.get('/objByCurHash/:curHash', function (req, res) {
+  router.get('/message/:curHash', localOnly, function (req, res) {
     tim.messages().byCurHash(req.params.curHash, function (err, result) {
       if (err) return sendErr(res, err)
 
       return tim.lookupObject(result)
-        .then(function (decrypted) {
-          res.json(decrypted)
+        .then(msg => {
+          msg = transformMessages(msg, req.query)
+          res.json(msg)
         })
-        .catch(function (err) {
-          sendErr(res, err)
-        })
+        .catch(err => sendErr(res, err))
         .done()
     })
   })
 
-  app.get('/chained', localOnly)
-  app.get('/chained', function (req, res) {
-    var chained = tim
+  router.get('/chained', localOnly, function (req, res) {
+    const chained = tim
       .messages()
       .createValueStream()
       .pipe(map(function (data, cb) {
@@ -176,59 +163,58 @@ module.exports = function timServer (opts) {
     collect(chained, function (err, results) {
       if (err) return sendErr(res, err)
 
-      if (req.query.bodyOnly === 'y') {
-        results = results.map(function (r) {
-          return r.parsed
-        })
-      }
-
+      transformMessages(results, req.query)
       res.json(results)
     })
   })
 
-  // GET for convenience
-  app.get('/send', localOnly)
-  app.get('/send', function (req, res) {
-    if (!('to' in req.query && 'msg' in req.query)) {
-      return res.status(400).send('"to" and "msg" are required parameters')
+  router.post('/message', localOnly, jsonParser, function (req, res, next) {
+    const body = req.body
+    if (!body) {
+      return sendErr(res, 'where did you hide the body?', 400)
     }
 
-    var to = req.query.to
-    var msg = req.query.msg
-    var promise
-    try {
-      msg = JSON.parse(msg)
-      to = JSON.parse(to)
-      if (!Array.isArray(to)) {
-        to = [to]
-      }
+    if (!('to' in body && 'body' in body)) {
+      return sendErr(res, '"to" and "body" are required parameters', 400)
+    }
 
+    let to = body.to
+    const msg = body.body
+    if (!(to && msg && typeof to === 'object' && typeof msg === 'object')) {
+      return sendErr(res, '"to" and "body" must be JSON objects', 400)
+    }
+
+    if (!Array.isArray(to)) to = [to]
+    if (!msg[NONCE]) msg[NONCE] = tradleUtils.newMsgNonce()
+
+    let promise
+    try {
       promise = tim.send({
         to: to,
         msg: msg,
-        public: truthy(req.query.public),
-        chain: truthy(req.query.chain),
-        deliver: truthy(req.query.deliver)
+        public: yn(req.query.public),
+        chain: yn(req.query.chain),
+        // default to true
+        deliver: yn(req.query.deliver) !== false
       })
     } catch (err) {
-      return res.status(400).send(err.message)
+      // TODO: may need to sanitize error
+      return sendErr(res, err.message, 400)
     }
 
     promise
       .then(function (entries) {
         // res.send('sending, check back in a bit...')
-        res.json(entries.map(function (e) {
-          return e.toJSON()
-        }))
+        res.json(entries[0].toJSON())
       })
       .catch(function (err) {
-        err.message = 'failed to send message: ' + err.message
+        err = tradleUtils.httpError(err.code, 'failed to send message: ' + err.message)
         sendErr(res, err)
       })
       .done()
   })
 
-  app.use(defaultErrHandler)
+  router.use(defaultErrHandler)
 
   tim.once('ready', function () {
     // tim.on('chained', function (obj) {
@@ -262,9 +248,22 @@ module.exports.middleware = {
   localOnly: localOnly
 }
 
-function sendErr (res, err) {
-  var msg = DEV ? err.message : 'something went horribly wrong'
-  res.status(500).send(msg + '\n' + err.stack)
+function safeSendErr (res, err, code) {
+  const msg = DEV
+    ? getErrorMessage(err) + (err.stack && ('\n' + err.stack))
+    : 'something went horribly wrong'
+
+  sendErr(res, msg, code || err.code)
+}
+
+function sendErr (res, msg, code) {
+  res.status(code || 500).send({
+    message: msg
+  })
+}
+
+function getErrorMessage (err) {
+  return typeof err === 'string' ? err : err.message
 }
 
 function jsonReplacer (k, v)  {
@@ -276,11 +275,22 @@ function jsonReplacer (k, v)  {
 }
 
 function defaultErrHandler (err, req, res, next) {
-  if (err) return sendErr(res, err)
+  if (err) return safeSendErr(res, err)
 
   next()
 }
 
 function truthy (val) {
   return val === '1' || val === 'true'
+}
+
+function transformMessages (msgs, opts) {
+  const wasArray = Array.isArray(msgs)
+  if (!wasArray) msgs = [msgs]
+
+  if (yn(opts.bodyOnly)) {
+    msgs = msgs.map(m => m.parsed)
+  }
+
+  return wasArray ? msgs : msgs[0]
 }

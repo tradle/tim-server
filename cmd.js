@@ -63,7 +63,7 @@ var tim = buildTim({
 })
 
 var destroy = setupApp({
-  app: app,
+  router: app,
   tim: tim
 })
 
