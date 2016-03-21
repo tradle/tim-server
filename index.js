@@ -91,38 +91,6 @@ module.exports = function timServer (opts) {
     })
   })
 
-  // router.get('/message', localOnly, function (req, res) {
-  //   tim.messages().byRootHash(req.params.rootHash, function (err, results) {
-  //     if (err) return sendErr(res, err)
-
-  //     res.json(results)
-  //   })
-  // })
-
-  // router.get('/decryptedMessages', localOnly, function (req, res) {
-  //   collect(tim.decryptedMessagesStream(), function (err, results) {
-  //     if (err) return sendErr(res, err)
-
-  //     res.json(results)
-  //   })
-  // })
-
-  // router.get('/decrypted/:rootHash', localOnly, function (req, res) {
-  //   return Q.ninvoke(tim.messages(), 'byRootHash', req.params.rootHash)
-  //     .then(function (results) {
-  //       return Q.all(results.map(function (r) {
-  //         return tim.lookupObject(r)
-  //       }))
-  //     })
-  //     .then(function (decrypted) {
-  //       res.json(decrypted)
-  //     })
-  //     .catch(function (err) {
-  //       sendErr(res, err)
-  //     })
-  //     .done()
-  // })
-
   router.get('/message/:curHash', localOnly, function (req, res) {
     tim.messages().byCurHash(req.params.curHash, function (err, result) {
       if (err) return sendErr(res, err)

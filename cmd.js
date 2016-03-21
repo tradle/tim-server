@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 var express = require('express')
-var buildTim = require('./lib/buildTim')
 var argv = require('minimist')(process.argv.slice(2), {
   alias: {
     p: 'port',
@@ -43,26 +42,30 @@ server.on('error', function (err) {
 })
 
 // hacky, but express needs to run with net, not utp
-require('@tradle/multiplex-utp')
+// need this for zlorp (OTR chat over udp)
+// require('@tradle/multiplex-utp')
 
-var debug = require('debug')('tim-server')
 var path = require('path')
 var assert = require('assert')
-var setupApp = require('./')
-
+var debug = require('debug')('tim-server')
 var Identity = require('@tradle/identity').Identity
-var identityJSON = require(path.resolve(argv.identity))
+var createServer = require('./')
+var buildTim = require('./lib/buildTim')
+
+var identityPath = path.resolve(argv.identity)
+var identityJSON = require(identityPath)
 var keys = require(path.resolve(argv.keys))
 var timPort = argv['tim-port']
 
 var tim = buildTim({
-  identity: identityJSON,
+  pathPrefix: path.dirname(identityPath),
+  identity: Identity.fromJSON(identityJSON),
   keys: keys,
   port: timPort,
   afterBlockTimestamp: 1445884939
 })
 
-var destroy = setupApp({
+var teardown = createServer({
   router: app,
   tim: tim
 })
@@ -76,7 +79,7 @@ tim.wallet.balance(function (err, balance) {
 })
 
 var selfDestructing
-process.on('exit', cleanup)
+process.on('exit', teardown)
 process.on('SIGINT', cleanup)
 process.on('SIGTERM', cleanup)
 process.on('uncaughtException', function (err) {
@@ -93,7 +96,7 @@ function cleanup () {
     server.close()
   } catch (err) {}
 
-  destroy()
+  teardown()
     .done(function () {
       debug('shutting down')
       process.exit()
