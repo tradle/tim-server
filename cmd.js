@@ -4,14 +4,12 @@ var express = require('express')
 var argv = require('minimist')(process.argv.slice(2), {
   alias: {
     p: 'port',
-    t: 'tim-port',
     i: 'identity',
     k: 'keys',
     h: 'help'
   },
   default: {
-    p: 33333,
-    t: 44444
+    p: 33333
   }
 })
 
@@ -120,8 +118,7 @@ function printIdentityPublishStatus () {
 }
 
 function printHelp () {
-  console.log(function () {
-  /*
+  console.log(`
   WORK IN PROGRESS, DON'T USE IN A PRODUCTION ENVIRONMENT
 
   Usage:
@@ -135,10 +132,8 @@ function printHelp () {
       -i, --identity [path]   path to identity JSON
       -k, --keys [path]       path to private keys file (for identity)
       -p, --port [number]     server port (default: 33333)
-      -t, --tim-port [number] port tim will run on (default: 44444)
 
   Please report bugs!  https://github.com/mvayngrib/tim-server/issues
-  */
-  }.toString().split(/\n/).slice(2, -2).join('\n'))
+  `)
   process.exit(0)
 }
