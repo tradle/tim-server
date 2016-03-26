@@ -43,6 +43,7 @@ server.on('error', function (err) {
 // need this for zlorp (OTR chat over udp)
 // require('@tradle/multiplex-utp')
 
+require('./lib/q-to-bluebird')
 var path = require('path')
 var assert = require('assert')
 var debug = require('debug')('tim-server')
