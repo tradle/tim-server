@@ -250,7 +250,7 @@ module.exports = function timServer (opts) {
   //   printIdentityPublishStatus()
   // }, 60000).unref()
 
-  return function () {
+  return function destroy () {
     return Q.all([
       tim.destroy(),
       Q.ninvoke(queue, 'close')
