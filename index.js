@@ -252,7 +252,7 @@ module.exports = function timServer (opts) {
 
   return function destroy () {
     return Q.all([
-      tim.destroy(),
+      // tim.destroy(), // leave this up to caller
       Q.ninvoke(queue, 'close')
     ])
   }
