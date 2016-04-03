@@ -10,7 +10,6 @@ const jsonParser = require('body-parser').json()
 const urlParser = require('body-parser').urlencoded({ extended: true })
 const Q = require('bluebird-q')
 const writeFile = require('write-file-atomic')
-const mkdirp = require('mkdirp')
 const validURL = require('valid-url')
 const tradleUtils = require('@tradle/utils')
 const Identity = require('@tradle/identity').Identity
@@ -19,16 +18,6 @@ const newHooks = require('./lib/webhooks')
 const localOnly = require('./middleware/localOnly')
 const env = process.env.NODE_ENV || 'development'
 const DEV = env === 'development'
-const hooksDir = path.join(process.env.HOME, '.tradle-server')
-const hooksPath = path.join(hooksDir, 'hooks.json')
-const hooksDbPath = path.join(hooksDir, 'hooks.db')
-let hooks
-try {
-  hooks = require(hooksPath)
-} catch (err) {
-  mkdirp.sync(hooksDir)
-  hooks = {}
-}
 
 module.exports = function timServer (opts) {
   typeforce({
@@ -37,8 +26,18 @@ module.exports = function timServer (opts) {
     public: '?Boolean'
   }, opts)
 
+  const router = opts.router
+  const tim = opts.tim
+  const hooksPath = tim._prefix('hooks.json')
+  let hooks
+  try {
+    hooks = require(hooksPath)
+  } catch (err) {
+    hooks = {}
+  }
+
   const queue = newHooks({
-    path: hooksDbPath,
+    path: tim._prefix('hooks.db'),
     maxRetries: 50,
     backoff: {
       randomisationFactor: 0,
@@ -46,9 +45,6 @@ module.exports = function timServer (opts) {
       maxDelay: 600000        // 10 mins
     }
   })
-
-  const router = opts.router
-  const tim = opts.tim
 
   if (DEV && router.set) {
     router.set('json replacer', jsonReplacer)
@@ -250,13 +246,12 @@ module.exports = function timServer (opts) {
   //   printIdentityPublishStatus()
   // }, 60000).unref()
 
-  return function destroy () {
-    return Q.all([
-      // tim.destroy(), // leave this up to caller
-      Q.ninvoke(queue, 'close')
-    ])
-  }
+  return {
+    destroy,
+    hooks: {
 
+    }
+  }
 
   // function printBalance () {
   //   tim.wallet.balance(function (err, balance) {
@@ -264,6 +259,49 @@ module.exports = function timServer (opts) {
   //     else console.log('balance', balance)
   //   })
   // }
+
+  function destroy () {
+    return Q.all([
+      // tim.destroy(), // leave this up to caller
+      Q.ninvoke(queue, 'close')
+    ])
+  }
+
+  function updateHooks (req, res, remove) {
+    const create = !remove
+    const url = req.body.url
+    if (!url) return sendErr(res, 'expected "url" parameter', 400)
+    if (!validURL.isUri(url)) return sendErr(res, 'invalid "url" parameter', 400)
+
+    // we're already good
+    if (!!hooks[url] === create) return sendCode(res, 200)
+
+    let code = 200
+    try {
+      editHook(url, create)
+    } catch (err) {
+      code = 500
+    }
+
+    sendCode(res, code)
+  }
+
+  function editHook (url, create) {
+    try {
+      if (create) hooks[url] = true
+      else delete hooks[url]
+
+      writeFile.sync(hooksPath, hooks)
+      return 200
+    } catch (err) {
+      console.error(err)
+
+      // revert change (in-memory)
+      if (remove) hooks[url] = true
+      else delete hooks[url]
+      throw err
+    }
+  }
 }
 
 module.exports.middleware = {
@@ -345,32 +383,4 @@ function objToJSON (obj) {
   }
 
   return obj
-}
-
-function updateHooks (req, res, remove) {
-  const create = !remove
-  const url = req.body.url
-  if (!url) return sendErr(res, 'expected "url" parameter', 400)
-  if (!validURL.isUri(url)) return sendErr(res, 'invalid "url" parameter', 400)
-
-  // we're already good
-  if (!!hooks[url] === create) return sendCode(res, 200)
-
-  let code
-  try {
-    if (create) hooks[url] = true
-    else delete hooks[url]
-
-    writeFile.sync(hooksPath, hooks)
-    code = 200
-  } catch (err) {
-    code = 500
-    console.error(err)
-
-    // revert change (in-memory)
-    if (remove) hooks[url] = true
-    else delete hooks[url]
-  }
-
-  sendCode(res, code)
 }
