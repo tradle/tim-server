@@ -246,12 +246,7 @@ module.exports = function timServer (opts) {
   //   printIdentityPublishStatus()
   // }, 60000).unref()
 
-  return {
-    destroy,
-    hooks: {
-
-    }
-  }
+  return destroy
 
   // function printBalance () {
   //   tim.wallet.balance(function (err, balance) {
