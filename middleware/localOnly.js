@@ -1,8 +1,8 @@
 
-var LOCAL_IP_REGEX = /^(?:::ffff:)?127\.0\.0\.1$/
+const ip = require('ip')
 
 module.exports = function filterIps (req, res, next) {
-  if (LOCAL_IP_REGEX.test(req.ip)) {
+  if (ip.isPrivate(req.ip)) {
     next()
   } else {
     res.status(403).send('forbidden')
