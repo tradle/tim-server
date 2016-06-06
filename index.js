@@ -207,7 +207,7 @@ module.exports = function timServer (opts) {
     updateHooks(req, res)
   })
 
-  router.delete('/hook', localOnly, urlParser, function (req, res, next) {
+  router.delete('/hook/:url', localOnly, urlParser, function (req, res, next) {
     // remove
     updateHooks(req, res, true)
   })
