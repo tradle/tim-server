@@ -1,62 +1,63 @@
 'use strict'
 
 const test = require('tape')
-const rimraf = require('rimraf')
-const http = require('http')
-const webhooks = require('../lib/webhooks')
+const request = require('supertest')
+const leveldown = require('memdown')
+const levelup = require('levelup')
+const users = require('./fixtures/users')
+let dbCounter = 0
 
-test('webhooks', function (t) {
-  const port = 32320
-  const webhooksDBPath = './hooks.db'
-  rimraf.sync(webhooksDBPath)
+function nextDBName () {
+  return 'db' + (dbCounter++)
+}
 
-  const opts = {
-    path: webhooksDBPath,
-    backoff: {
-      initialDelay: 100
+// function nextFeed () {
+//   return changesFeed(helpers.nextDB())
+// }
+
+function nextDB (opts) {
+  opts = opts || {}
+  if (!opts.leveldown) opts.db = leveldown
+  return levelup(nextDBName(), opts)
+}
+
+function createKeeper () {
+  return nextDB()
+}
+
+test('api', function (t) {
+  const user = users[0]
+  // const node = new tradle.node({
+  //   dir: './blah',
+  //   networkName: 'testnet',
+  //   keys: user.priv,
+  //   identity: user.pub,
+  //   keeper: createKeeper(),
+  //   leveldown: leveldown,
+  //   transactor: function (to, cb) {
+  //     cb(new Error('blah'))
+  //   }
+  // })
+
+  const mockNode = {
+    send: function () {
+
+    },
+    signNSend: function () {
+
+    },
+    addressBook: {
+      createReadStream: function () {
+        var r = new Readable()
+        r._read = function () {}
+        r.push(users[0], users[1])
+        return r
+      }
     }
   }
 
-  let tries = 5
-  const server = http.createServer(function (req, res) {
-    tries--
-    if (tries < 0) throw new Error('job performed twice')
-
-    const status = tries === 0 ? 200 : 400
-    if (tries === 0) {
-      t.equal(req.method, 'POST')
-      t.pass('webhook called, waiting...')
-      setTimeout(function () {
-        queue.__db.createReadStream()
-          .on('data', t.fail)
-          .on('end', function () {
-            server.close()
-            rimraf.sync(webhooksDBPath)
-            t.end()
-          })
-      }, 3000)
-    }
-
-    res.writeHead(status, {'Content-Type': 'text/plain'})
-    res.end()
-  })
-
-  server.listen(port)
-
-  let queue = webhooks(opts)
-
-  queue.push(
-    `http://127.0.0.1:${port}`,
-    {
-      event: 'message',
-      data: {
-        hey: 'ho'
-      }
-    }
-  )
-
-  // terminate, restart, check for persistance
-  queue.close(function () {
-    queue = webhooks(opts)
-  })
+  const app = express()
+  const server = createServer({ router: app, node: node })
+  request(app)
+    .get('/identities')
 })
