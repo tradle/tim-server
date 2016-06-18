@@ -50,6 +50,10 @@ module.exports = function createServer (opts) {
   //     .catch(err => sendErr(res, err))
   // })
 
+  router.get('/identity', function (req, res) {
+    res.json(node.identity)
+  })
+
   router.get('/identities', function (req, res) {
     collect(node.addressBook.createReadStream(), function (err, results) {
       if (err) return sendErr(res, err)
