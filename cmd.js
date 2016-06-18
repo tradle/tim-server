@@ -22,7 +22,7 @@ if (argv.help) {
   printHelp()
 }
 
-;['identity', 'keys', 'datadir', 'blockchain'].forEach(arg => {
+;['identity', 'keys', 'datadir'].forEach(arg => {
   if (!argv[arg]) {
     console.error(`ERROR: --${arg} is required, see usage`)
     printHelp()
@@ -40,7 +40,9 @@ const express = require('express')
 const leveldown = require('leveldown')
 const mkdirp = require('mkdirp')
 const prompt = require('prompt')
-const Blockchain = require('cb-http-client')
+const blockchainURL = argv.blockchain
+let Blockr = !blockchainURL && require('@tradle/cb-blockr')
+let Blockchain = blockchainURL && require('cb-http-client')
 const createKeeper = require('@tradle/keeper')
 const tradle = require('@tradle/engine')
 const utils = require('./lib/utils')
@@ -112,7 +114,7 @@ function doStart (opts) {
     },
     leveldown: leveldown,
     networkName: networkName,
-    blockchain: new Blockchain(argv.blockchain)
+    blockchain: blockchainURL ? new Blockchain(argv.blockchain) : new Blockr(networkName)
     // afterBlockTimestamp: 1445884939
   })
 
