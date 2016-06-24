@@ -118,12 +118,6 @@ function doStart (opts) {
     // afterBlockTimestamp: 1445884939
   })
 
-  // printIdentityPublishStatus()
-  // tim.wallet.balance(function (err, balance) {
-  //   console.log('Balance: ', balance)
-  //   console.log('Send coins to: ', tim.wallet.addressString)
-  // })
-
   createServer({
     router: app,
     node: node
@@ -153,22 +147,6 @@ function cleanup () {
     }, 5000)
   }
 }
-
-// function printIdentityPublishStatus () {
-//   tim.identityPublishStatus()
-//     .then(function (status) {
-//       const msg = 'identity status: '
-//       if (status.current) msg += 'published latest'
-//       else if (status.queued) msg += 'queued for publishing'
-//       else if (!status.ever) msg += 'unpublished'
-//       else msg += 'published, needs republish'
-
-//       console.log(msg)
-//     })
-//     .catch(function (err) {
-//       console.error('failed to get identity status', err.message)
-//     })
-// }
 
 function printHelp () {
   console.log(`
