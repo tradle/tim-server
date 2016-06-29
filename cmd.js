@@ -45,6 +45,7 @@ let Blockr = !blockchainURL && require('@tradle/cb-blockr')
 let Blockchain = blockchainURL && require('cb-http-client')
 const createKeeper = require('@tradle/keeper')
 const tradle = require('@tradle/engine')
+const serviceUtils = require('@tradle/service-utils')
 const utils = require('./lib/utils')
 
 process.on('exit', cleanup)
@@ -59,16 +60,11 @@ const stop = start()
 let selfDestructing
 
 function start () {
-  prompt.get(['password'], function (err, result) {
-    if (err) throw err
-
-    const password = result.password
-    let keys = fs.readFileSync(path.resolve(argv.keys))
-    try {
-      keys = utils.decrypt(keys, password)
-    } catch (err) {
-      console.error('Wrong. Try again.')
-      return start()
+  let keys = fs.readFileSync(path.resolve(argv.keys))
+  serviceUtils.promptPassAndDecrypt(keys, 3, function (err, keys, password) {
+    if (err) {
+      console.error('goodbye')
+      return process.exit(1)
     }
 
     keys = JSON.parse(keys)
