@@ -32,23 +32,11 @@ module.exports = function createServer (opts) {
 
   if (!opts.public) router.use(localOnly)
 
-  // router.get('/balance', localOnly, function (req, res) {
-  //   Q.ninvoke(node.wallet, 'balance')
-  //     .then(balance => res.json({balance}))
-  //     .catch(err => sendErr(res, err))
-  // })
-
-  // router.get('/publish-status', localOnly, function (req, res) {
-  //   node.identityPublishStatus()
-  //     .then(status => res.json({status}))
-  //     .catch(err => sendErr(res, err))
-  // })
-
-  // router.get('/self-publish', localOnly, function (req, res) {
-  //   node.publishMyIdentity()
-  //     .then(() => res.send('Publishing...check back in a bit'))
-  //     .catch(err => sendErr(res, err))
-  // })
+  router.get('/balance', localOnly, function (req, res) {
+    Q.ninvoke(node.wallet, 'balance')
+      .then(balance => res.json({ balance }))
+      .catch(err => sendErr(res, err))
+  })
 
   router.get('/identity', function (req, res) {
     res.json(node.identity)
@@ -106,8 +94,6 @@ module.exports = function createServer (opts) {
     })
   })
 
-  router.use(defaultErrHandler)
-
   // ;['message', 'wroteseal', 'readseal'].forEach(event => {
   //   node.on(event, info => {
   //     if (!Object.keys(hooks).length) return
@@ -137,18 +123,20 @@ module.exports = function createServer (opts) {
       return sendErr(res, 'where did you hide the body?', 400)
     }
 
-    if (!('to' in body && 'body' in body)) {
-      return sendErr(res, '"to" and "body" are required parameters', 400)
-    }
-
-    const recipient = body.recipient
-    const object = body.body
-    if (!(recipient && object && typeof recipient === 'object' && typeof object === 'object')) {
-      return sendErr(res, '"recipient" and "body" must be JSON objects', 400)
+    try {
+      typeforce({
+        to: typeforce.String,
+        object: typeforce.Object
+      }, body)
+    } catch (err) {
+      return sendErr(res, 'invalid POST data. Expected string "to" and object "object"', 400)
     }
 
     try {
-      node.signNSend({ recipient, object }, function (err, result) {
+      node.signAndSend({
+        to: { permalink: body.to },
+        object: body.object
+      }, function (err, result) {
         if (err) return sendErr(res, err)
 
         res.json(result)
@@ -162,11 +150,14 @@ module.exports = function createServer (opts) {
   router.post('/seal/:link', localOnly, function (req, res) {
     const link = req.params.link
     node.seal({ link }, function (err, result) {
+      if (err.type === 'exists') return sendErr(res, err, 409)
       if (err) return sendErr(res, err)
 
       res.json(result)
     })
   })
+
+  router.use(defaultErrHandler)
 
   // function printBalance () {
   //   node.wallet.balance(function (err, balance) {
