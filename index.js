@@ -84,7 +84,10 @@ module.exports = function createServer (opts) {
     })
   })
 
-  router.get('/sealed', localOnly, function (req, res) {
+  router.get('/seal', localOnly, listSeals)
+  router.get('/sealed', localOnly, listSeals)
+
+  function listSeals (req, res) {
     const sealed = node.objects.sealed({ keys: false })
     collect(sealed, function (err, results) {
       if (err) return sendErr(res, err)
@@ -92,7 +95,7 @@ module.exports = function createServer (opts) {
       // transformMessages(results, req.query)
       res.json(results)
     })
-  })
+  }
 
   // ;['message', 'wroteseal', 'readseal'].forEach(event => {
   //   node.on(event, info => {
