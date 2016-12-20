@@ -4,6 +4,7 @@ const path = require('path')
 // const through = require('through2')
 const collect = require('stream-collector')
 const typeforce = require('typeforce')
+const extend = require('xtend')
 const yn = require('yn')
 const jsonParser = require('body-parser').json()
 const urlParser = require('body-parser').urlencoded({ extended: true })
@@ -126,20 +127,12 @@ module.exports = function createServer (opts) {
       return sendErr(res, 'where did you hide the body?', 400)
     }
 
-    try {
-      typeforce({
-        to: typeforce.String,
-        object: typeforce.Object
-      }, body)
-    } catch (err) {
-      return sendErr(res, 'invalid POST data. Expected string "to" and object "object"', 400)
-    }
+    const opts = extend(body, {
+      to: { permalink: body.to }
+    })
 
     try {
-      node.signAndSend({
-        to: { permalink: body.to },
-        object: body.object
-      }, function (err, result) {
+      node.signAndSend(opts, function (err, result) {
         if (err) return sendErr(res, err)
 
         res.json(result)
