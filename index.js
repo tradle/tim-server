@@ -6,7 +6,11 @@ const collect = require('stream-collector')
 const typeforce = require('typeforce')
 const extend = require('xtend')
 const yn = require('yn')
-const jsonParser = require('body-parser').json()
+const bodyParser = require('body-parser')
+const bigJsonParser = function () {
+  return bodyParser.json({ limit: '50mb' })
+}
+
 const urlParser = require('body-parser').urlencoded({ extended: true })
 // const constants = require('@tradle/protocol').constants
 const localOnly = require('./middleware/localOnly')
@@ -121,7 +125,7 @@ module.exports = function createServer (opts) {
 
   // WRITE
 
-  router.post('/message', localOnly, jsonParser, function (req, res, next) {
+  router.post('/message', localOnly, bigJsonParser(), function (req, res, next) {
     const body = req.body
     if (!body) {
       return sendErr(res, 'where did you hide the body?', 400)
@@ -133,7 +137,13 @@ module.exports = function createServer (opts) {
 
     try {
       node.signAndSend(opts, function (err, result) {
-        if (err) return sendErr(res, err)
+        if (err) {
+          if (err.name === 'NotFoundError') {
+            return sendErr(res, `client not found: ${body.to}`, 400)
+          }
+
+          return sendErr(res, err)
+        }
 
         res.json(result)
       })
