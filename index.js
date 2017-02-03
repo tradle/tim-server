@@ -138,7 +138,7 @@ module.exports = function createServer (opts) {
     try {
       node.signAndSend(opts, function (err, result) {
         if (err) {
-          if (err.name === 'NotFoundError') {
+          if (err.type === 'NotFoundError') {
             return sendErr(res, `client not found: ${body.to}`, 400)
           }
 
@@ -156,7 +156,13 @@ module.exports = function createServer (opts) {
   router.post('/seal/:link', localOnly, function (req, res) {
     const link = req.params.link
     node.seal({ link }, function (err, result) {
-      if (err.type === 'exists') return sendErr(res, err, 409)
+      if (err) {
+        if (err.type === 'exists') return sendErr(res, err, 409)
+        if (err.type === 'NotFoundError') {
+          return sendErr(res, `object with link "${link}" not found`, 404)
+        }
+      }
+
       if (err) return sendErr(res, err)
 
       res.json(result)
