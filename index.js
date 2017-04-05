@@ -3,6 +3,7 @@
 const path = require('path')
 // const through = require('through2')
 const collect = require('stream-collector')
+const map = require('map-stream')
 const typeforce = require('typeforce')
 const extend = require('xtend')
 const yn = require('yn')
@@ -21,7 +22,7 @@ module.exports = function createServer (opts) {
   typeforce({
     router: typeforce.oneOf('EventEmitter', 'Function'), // express app/router
     node: 'Object',
-    public: '?Boolean'
+    // public: '?Boolean'
   }, opts)
 
   const node = opts.node
@@ -35,25 +36,23 @@ module.exports = function createServer (opts) {
     router.set('json spaces', 2)
   }
 
-  if (!opts.public) router.use(localOnly)
+  // router.get('/balance', localOnly, function (req, res) {
+  //   Q.ninvoke(node.wallet, 'balance')
+  //     .then(balance => res.json({ balance }))
+  //     .catch(err => sendErr(res, err))
+  // })
 
-  router.get('/balance', localOnly, function (req, res) {
-    Q.ninvoke(node.wallet, 'balance')
-      .then(balance => res.json({ balance }))
-      .catch(err => sendErr(res, err))
-  })
+  // router.get('/identity', function (req, res) {
+  //   res.json(node.identity)
+  // })
 
-  router.get('/identity', function (req, res) {
-    res.json(node.identity)
-  })
+  // router.get('/identities', function (req, res) {
+  //   collect(node.addressBook.createReadStream(), function (err, results) {
+  //     if (err) return sendErr(res, err)
 
-  router.get('/identities', function (req, res) {
-    collect(node.addressBook.createReadStream(), function (err, results) {
-      if (err) return sendErr(res, err)
-
-      res.json(results)
-    })
-  })
+  //     res.json(results)
+  //   })
+  // })
 
   router.get('/identity/:identifier', function (req, res) {
     node.addressBook.lookupIdentity(req.params.identifier, function (err, val) {
@@ -63,29 +62,29 @@ module.exports = function createServer (opts) {
     })
   })
 
-  router.get('/messages', localOnly, function (req, res) {
-    const filter = req.query
-    const stream = node.objects.messages()
-      .pipe(map((data, cb) => {
-        for (let p in filter) {
-          if (data[p] !== filter[p]) return cb()
-        }
+  // router.get('/messages', localOnly, function (req, res) {
+  //   const filter = req.query
+  //   const stream = node.objects.messages()
+  //     .pipe(map((data, cb) => {
+  //       for (let p in filter) {
+  //         if (data[p] !== filter[p]) return cb()
+  //       }
 
-        cb(null, data)
-      }))
+  //       cb(null, data)
+  //     }))
 
-    collect(stream, function (err, results) {
-      if (err) return sendErr(res, err)
+  //   collect(stream, function (err, results) {
+  //     if (err) return sendErr(res, err)
 
-      res.json(results)
-    })
-  })
+  //     res.json(results)
+  //   })
+  // })
 
   router.get('/object/:link', localOnly, function (req, res) {
     node.objects.get(req.params.link, function (err, result) {
       if (err) return sendErr(res, new Error('not found'), 404)
 
-      res.json(val)
+      res.json(result)
     })
   })
 
@@ -171,6 +170,10 @@ module.exports = function createServer (opts) {
 
   router.use(defaultErrHandler)
 
+  function passThrough (req, res, next) {
+    next()
+  }
+
   // function printBalance () {
   //   node.wallet.balance(function (err, balance) {
   //     if (err) console.error('failed to get balance', err.message)
@@ -217,19 +220,4 @@ function defaultErrHandler (err, req, res, next) {
   if (err) return safeSendErr(res, err)
 
   next()
-}
-
-function truthy (val) {
-  return val === '1' || val === 'true'
-}
-
-function transformMessages (msgs, opts) {
-  const wasArray = Array.isArray(msgs)
-  if (!wasArray) msgs = [msgs]
-
-  if (yn(opts.bodyOnly)) {
-    msgs = msgs.map(m => m.parsed)
-  }
-
-  return wasArray ? msgs : msgs[0]
 }
