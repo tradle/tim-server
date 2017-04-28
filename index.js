@@ -148,7 +148,7 @@ module.exports = function createServer (opts) {
       })
     } catch (err) {
       // TODO: may need to sanitize error
-      return sendErr(res, err.message, 400)
+      return sendErr(res, err, 400)
     }
   })
 
@@ -194,9 +194,9 @@ function safeSendErr (res, err, code) {
   sendErr(res, msg, code || err.code)
 }
 
-function sendErr (res, msg, code) {
+function sendErr (res, err, code) {
   res.status(code || 500).send({
-    message: msg
+    message: getErrorMessage(err)
   })
 }
 
